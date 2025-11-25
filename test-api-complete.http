@@ -1,0 +1,106 @@
+### TN3270 API 测试 - 包含字符串输入
+
+### 1. 健康检查
+GET http://localhost:8080/api/tn3270/health
+
+### 2. API1: 登录到 TSO 主菜单
+POST http://localhost:8080/api/tn3270/login
+Content-Type: application/json
+
+### 3. API2: 输入命令（指定位置，不自动回车）
+# 在第 4 行第 13 列输入 "2"
+POST http://localhost:8080/api/tn3270/menu/command
+Content-Type: application/json
+X-Session-Id: YOUR_SESSION_ID
+
+{
+  "row": 4,
+  "column": 13,
+  "command": "2"
+}
+
+### 4. API8: 发送字符串（不指定位置，在当前光标位置输入）✨ 新增
+POST http://localhost:8080/api/tn3270/send/string
+Content-Type: application/json
+X-Session-Id: YOUR_SESSION_ID
+
+{
+  "text": "Hello"
+}
+
+### 5. API5: 发送回车键
+POST http://localhost:8080/api/tn3270/key/enter
+X-Session-Id: YOUR_SESSION_ID
+
+### 6. 获取当前屏幕内容
+GET http://localhost:8080/api/tn3270/screen
+X-Session-Id: YOUR_SESSION_ID
+
+### 7. API7: 发送 Tab 键
+POST http://localhost:8080/api/tn3270/key/tab
+X-Session-Id: YOUR_SESSION_ID
+
+### 8. API6: 发送 Reset
+POST http://localhost:8080/api/tn3270/key/reset
+X-Session-Id: YOUR_SESSION_ID
+
+### 9. 完整操作流程示例：使用 Tab 和字符串输入
+# 步骤1: 输入第一个值（指定位置）
+POST http://localhost:8080/api/tn3270/menu/command
+Content-Type: application/json
+X-Session-Id: YOUR_SESSION_ID
+
+{
+  "row": 5,
+  "column": 10,
+  "command": "VALUE1"
+}
+
+### 步骤2: 按 Tab 跳到下一个字段
+POST http://localhost:8080/api/tn3270/key/tab
+X-Session-Id: YOUR_SESSION_ID
+
+### 步骤3: 在当前位置输入字符串（不指定位置）✨
+POST http://localhost:8080/api/tn3270/send/string
+Content-Type: application/json
+X-Session-Id: YOUR_SESSION_ID
+
+{
+  "text": "VALUE2"
+}
+
+### 步骤4: 按回车提交
+POST http://localhost:8080/api/tn3270/key/enter
+X-Session-Id: YOUR_SESSION_ID
+
+### 10. 字符串输入示例 - 输入用户名
+POST http://localhost:8080/api/tn3270/send/string
+Content-Type: application/json
+X-Session-Id: YOUR_SESSION_ID
+
+{
+  "text": "HERC01"
+}
+
+### 11. Tab 到密码字段
+POST http://localhost:8080/api/tn3270/key/tab
+X-Session-Id: YOUR_SESSION_ID
+
+### 12. 输入密码
+POST http://localhost:8080/api/tn3270/send/string
+Content-Type: application/json
+X-Session-Id: YOUR_SESSION_ID
+
+{
+  "text": "PASSWORD123"
+}
+
+### 13. 回车提交
+POST http://localhost:8080/api/tn3270/key/enter
+X-Session-Id: YOUR_SESSION_ID
+
+### 14. API3: 执行 LOGOFF
+POST http://localhost:8080/api/tn3270/logoff
+X-Session-Id: YOUR_SESSION_ID
+
+###

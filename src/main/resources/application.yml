@@ -1,0 +1,19 @@
+server:
+  port: 8080
+
+# TN3270 配置
+tn3270:
+  host: 127.0.0.1
+  port: 3270
+  script-port: 4270
+  username: HERC01
+  password: CUL8TR
+  session-timeout: 300000  # 5分钟会话超时（毫秒）
+  
+# 日志配置
+logging:
+  level:
+    com.example.tn3270api: DEBUG
+    root: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

@@ -1,0 +1,43 @@
+### TN3270 API 测试
+
+### 1. 健康检查
+GET http://localhost:8080/api/tn3270/health
+
+### 2. 登录到 TSO 主菜单
+# 保存返回的 sessionId，用于后续请求
+POST http://localhost:8080/api/tn3270/login
+Content-Type: application/json
+
+### 3. 发送菜单命令 - 通用接口
+# 将下面的 YOUR_SESSION_ID 替换为步骤2返回的实际 sessionId
+POST http://localhost:8080/api/tn3270/menu/command
+Content-Type: application/json
+X-Session-Id: YOUR_SESSION_ID
+
+{
+  "command": "2"
+}
+
+### 4. 进入第2级菜单 - 专用接口（新增）
+# 固定在第4行第13列输入"2"
+POST http://localhost:8080/api/tn3270/menu/enter-level2
+X-Session-Id: YOUR_SESSION_ID
+
+### 5. 获取当前屏幕内容
+GET http://localhost:8080/api/tn3270/screen
+X-Session-Id: YOUR_SESSION_ID
+
+### 6. 发送 X 命令退出
+POST http://localhost:8080/api/tn3270/menu/command
+Content-Type: application/json
+X-Session-Id: YOUR_SESSION_ID
+
+{
+  "command": "X"
+}
+
+### 7. 执行 LOGOFF
+POST http://localhost:8080/api/tn3270/logoff
+X-Session-Id: YOUR_SESSION_ID
+
+###
