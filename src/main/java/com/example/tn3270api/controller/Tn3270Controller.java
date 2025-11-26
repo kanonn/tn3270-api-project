@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/api/tn3270")
-@CrossOrigin(origins = "*") // 允许跨域，方便 React 调用
 public class Tn3270Controller {
 
     private static final Logger logger = LoggerFactory.getLogger(Tn3270Controller.class);
