@@ -3,8 +3,10 @@ server:
 
 # TN3270 配置
 tn3270:
-  host: 127.0.0.1
-  port: 3270
+  host: ${TN3270_HOST:localhost}
+  port: ${TN3270_PORT:23}
+#  host: 127.0.0.1
+#  port: 3270
   script-port: 4270
   username: HERC01
   password: CUL8TR
