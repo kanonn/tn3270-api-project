@@ -10,6 +10,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class Tn3270ApiApplication {
 
     public static void main(String[] args) {
+        System.setProperty("java.net.preferIPv4Stack", "true");
+
         SpringApplication.run(Tn3270ApiApplication.class, args);
     }
 }
