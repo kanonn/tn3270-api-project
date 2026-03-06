@@ -1,7 +1,7 @@
 server:
   port: 8080
 
-# TN3270 配置
+# TN3270 configuration
 tn3270:
   host: ${TN3270_HOST:localhost}
   port: ${TN3270_PORT:3270}
@@ -10,9 +10,9 @@ tn3270:
   script-port: 4270
   username: HERC01
   password: CUL8TR
-  session-timeout: 300000  # 5分钟会话超时（毫秒）
+  session-timeout: 300000  # 5-minute session timeout (milliseconds)
 
-# 日志配置
+# Logging configuration
 logging:
   level:
     com.example.tn3270api: DEBUG

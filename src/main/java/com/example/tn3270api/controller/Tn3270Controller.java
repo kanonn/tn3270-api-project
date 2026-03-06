@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * TN3270 REST API 控制器
+ * TN3270 REST API Controller
  */
 @RestController
 @RequestMapping("/api/tn3270")
@@ -23,30 +23,30 @@ public class Tn3270Controller {
     private Tn3270Service tn3270Service;
 
     /**
-     * API1: 登录到 TSO 主菜单
+     * API1: Login to TSO main menu
      * POST /api/tn3270/login
      */
     @PostMapping("/login")
     public ApiResponse<ScreenResponse> login() {
         try {
-            logger.info("收到登录请求");
+            logger.info("Received login request");
             String sessionId = tn3270Service.login();
             ScreenResponse screen = tn3270Service.getScreen(sessionId);
 
-            ApiResponse<ScreenResponse> response = ApiResponse.success("登录成功", screen);
+            ApiResponse<ScreenResponse> response = ApiResponse.success("Login successful", screen);
             response.setSessionId(sessionId);
 
-            logger.info("登录成功，会话ID: {}", sessionId);
+            logger.info("Login successful, session ID: {}", sessionId);
             return response;
 
         } catch (Exception e) {
-            logger.error("登录失败", e);
-            return ApiResponse.error("登录失败: " + e.getMessage());
+            logger.error("Login failed", e);
+            return ApiResponse.error("Login failed: " + e.getMessage());
         }
     }
 
     /**
-     * API2: 发送菜单命令（可配置位置，不自动回车）
+     * API2: Send menu command (configurable position, no auto enter)
      * POST /api/tn3270/menu/command
      * Body: { "row": 4, "column": 13, "command": "2" }
      * Header: X-Session-Id: {sessionId}
@@ -56,57 +56,57 @@ public class Tn3270Controller {
             @RequestHeader("X-Session-Id") String sessionId,
             @RequestBody MenuCommandRequest request) {
         try {
-            logger.info("会话 {} 收到菜单命令: 行={}, 列={}, 命令={}", 
+            logger.info("Session {} received menu command: row={}, col={}, command={}",
                 sessionId, request.getRow(), request.getColumn(), request.getCommand());
 
             ScreenResponse screen = tn3270Service.sendMenuCommand(
-                sessionId, 
-                request.getRow(), 
-                request.getColumn(), 
+                sessionId,
+                request.getRow(),
+                request.getColumn(),
                 request.getCommand()
             );
 
-            ApiResponse<ScreenResponse> response = ApiResponse.success("命令输入成功", screen);
+            ApiResponse<ScreenResponse> response = ApiResponse.success("Command input successful", screen);
             response.setSessionId(sessionId);
 
             return response;
 
         } catch (Exception e) {
-            logger.error("命令输入失败", e);
-            return ApiResponse.error("命令输入失败: " + e.getMessage());
+            logger.error("Command input failed", e);
+            return ApiResponse.error("Command input failed: " + e.getMessage());
         }
     }
 
     /**
-     * API8: 发送字符串（不指定位置）
+     * API8: Send string (no position specified)
      * POST /api/tn3270/send/string
      * Body: { "text": "Hello" }
      * Header: X-Session-Id: {sessionId}
-     * 
-     * 在当前光标位置输入字符串
+     *
+     * Inputs the string at the current cursor position
      */
     @PostMapping("/send/string")
     public ApiResponse<ScreenResponse> sendString(
             @RequestHeader("X-Session-Id") String sessionId,
             @RequestBody StringRequest request) {
         try {
-            logger.info("会话 {} 发送字符串: {}", sessionId, request.getText());
+            logger.info("Session {} sending string: {}", sessionId, request.getText());
 
             ScreenResponse screen = tn3270Service.sendString(sessionId, request.getText());
 
-            ApiResponse<ScreenResponse> response = ApiResponse.success("字符串输入成功", screen);
+            ApiResponse<ScreenResponse> response = ApiResponse.success("String input successful", screen);
             response.setSessionId(sessionId);
 
             return response;
 
         } catch (Exception e) {
-            logger.error("字符串输入失败", e);
-            return ApiResponse.error("字符串输入失败: " + e.getMessage());
+            logger.error("String input failed", e);
+            return ApiResponse.error("String input failed: " + e.getMessage());
         }
     }
 
     /**
-     * API5: 发送回车键
+     * API5: Send Enter key
      * POST /api/tn3270/key/enter
      * Header: X-Session-Id: {sessionId}
      */
@@ -114,23 +114,23 @@ public class Tn3270Controller {
     public ApiResponse<ScreenResponse> sendEnter(
             @RequestHeader("X-Session-Id") String sessionId) {
         try {
-            logger.info("会话 {} 发送回车键", sessionId);
+            logger.info("Session {} sending Enter key", sessionId);
 
             ScreenResponse screen = tn3270Service.sendEnter(sessionId);
 
-            ApiResponse<ScreenResponse> response = ApiResponse.success("回车键发送成功", screen);
+            ApiResponse<ScreenResponse> response = ApiResponse.success("Enter key sent successfully", screen);
             response.setSessionId(sessionId);
 
             return response;
 
         } catch (Exception e) {
-            logger.error("回车键发送失败", e);
-            return ApiResponse.error("回车键发送失败: " + e.getMessage());
+            logger.error("Enter key failed", e);
+            return ApiResponse.error("Enter key failed: " + e.getMessage());
         }
     }
 
     /**
-     * API6: 发送 Reset
+     * API6: Send Reset
      * POST /api/tn3270/key/reset
      * Header: X-Session-Id: {sessionId}
      */
@@ -138,23 +138,23 @@ public class Tn3270Controller {
     public ApiResponse<ScreenResponse> sendReset(
             @RequestHeader("X-Session-Id") String sessionId) {
         try {
-            logger.info("会话 {} 发送 Reset", sessionId);
+            logger.info("Session {} sending Reset", sessionId);
 
             ScreenResponse screen = tn3270Service.sendReset(sessionId);
 
-            ApiResponse<ScreenResponse> response = ApiResponse.success("Reset 发送成功", screen);
+            ApiResponse<ScreenResponse> response = ApiResponse.success("Reset sent successfully", screen);
             response.setSessionId(sessionId);
 
             return response;
 
         } catch (Exception e) {
-            logger.error("Reset 发送失败", e);
-            return ApiResponse.error("Reset 发送失败: " + e.getMessage());
+            logger.error("Reset failed", e);
+            return ApiResponse.error("Reset failed: " + e.getMessage());
         }
     }
 
     /**
-     * API7: 发送 Tab 键
+     * API7: Send Tab key
      * POST /api/tn3270/key/tab
      * Header: X-Session-Id: {sessionId}
      */
@@ -162,81 +162,81 @@ public class Tn3270Controller {
     public ApiResponse<ScreenResponse> sendTab(
             @RequestHeader("X-Session-Id") String sessionId) {
         try {
-            logger.info("会话 {} 发送 Tab", sessionId);
+            logger.info("Session {} sending Tab", sessionId);
 
             ScreenResponse screen = tn3270Service.sendTab(sessionId);
 
-            ApiResponse<ScreenResponse> response = ApiResponse.success("Tab 键发送成功", screen);
+            ApiResponse<ScreenResponse> response = ApiResponse.success("Tab key sent successfully", screen);
             response.setSessionId(sessionId);
 
             return response;
 
         } catch (Exception e) {
-            logger.error("Tab 键发送失败", e);
-            return ApiResponse.error("Tab 键发送失败: " + e.getMessage());
+            logger.error("Tab key failed", e);
+            return ApiResponse.error("Tab key failed: " + e.getMessage());
         }
     }
 
     /**
-     * API4: 进入第2级菜单（专用接口）
+     * API4: Enter level-2 menu (dedicated endpoint)
      * POST /api/tn3270/menu/enter-level2
      * Header: X-Session-Id: {sessionId}
-     * 
-     * 固定在第4行第13列输入"2"并按回车
-     * @deprecated 建议使用 API2 + API5 组合
+     *
+     * Fixed: inputs "2" at row 4 column 13 and presses Enter
+     * @deprecated Use API2 + API5 combination instead
      */
     @Deprecated
     @PostMapping("/menu/enter-level2")
     public ApiResponse<ScreenResponse> enterSecondLevelMenu(
             @RequestHeader("X-Session-Id") String sessionId) {
         try {
-            logger.info("会话 {} 收到进入第2级菜单请求", sessionId);
+            logger.info("Session {} received enter-level2-menu request", sessionId);
 
             ScreenResponse screen = tn3270Service.enterSecondLevelMenu(sessionId);
 
-            ApiResponse<ScreenResponse> response = ApiResponse.success("成功进入第2级菜单", screen);
+            ApiResponse<ScreenResponse> response = ApiResponse.success("Successfully entered level-2 menu", screen);
             response.setSessionId(sessionId);
 
             return response;
 
         } catch (Exception e) {
-            logger.error("进入第2级菜单失败", e);
-            return ApiResponse.error("进入第2级菜单失败: " + e.getMessage());
+            logger.error("Failed to enter level-2 menu", e);
+            return ApiResponse.error("Failed to enter level-2 menu: " + e.getMessage());
         }
     }
 
     /**
-     * API3: 执行 LOGOFF
+     * API3: Execute LOGOFF
      * POST /api/tn3270/logoff
      * Header: X-Session-Id: {sessionId}
      */
     @PostMapping("/logoff")
     public ApiResponse<ScreenResponse> logoff(@RequestHeader("X-Session-Id") String sessionId) {
         try {
-            logger.info("会话 {} 收到 LOGOFF 请求", sessionId);
+            logger.info("Session {} received LOGOFF request", sessionId);
 
             ScreenResponse screen = tn3270Service.logoff(sessionId);
 
-            ApiResponse<ScreenResponse> response = ApiResponse.success("LOGOFF 成功", screen);
+            ApiResponse<ScreenResponse> response = ApiResponse.success("LOGOFF successful", screen);
             response.setSessionId(sessionId);
 
             return response;
 
         } catch (Exception e) {
-            logger.error("LOGOFF 失败", e);
-            return ApiResponse.error("LOGOFF 失败: " + e.getMessage());
+            logger.error("LOGOFF failed", e);
+            return ApiResponse.error("LOGOFF failed: " + e.getMessage());
         }
     }
 
     /**
-     * 额外接口: 获取当前屏幕内容
+     * Extra endpoint: get current screen content
      * GET /api/tn3270/screen
      * Header: X-Session-Id: {sessionId}
      */
     @GetMapping("/screen")
     public ApiResponse<ScreenResponse> getScreen(@RequestHeader("X-Session-Id") String sessionId) {
         try {
-            logger.info("会话 {} 获取屏幕内容", sessionId);
+            logger.info("Session {} getting screen content", sessionId);
 
             ScreenResponse screen = tn3270Service.getScreen(sessionId);
 
@@ -246,17 +246,17 @@ public class Tn3270Controller {
             return response;
 
         } catch (Exception e) {
-            logger.error("获取屏幕内容失败", e);
-            return ApiResponse.error("获取屏幕内容失败: " + e.getMessage());
+            logger.error("Failed to get screen content", e);
+            return ApiResponse.error("Failed to get screen content: " + e.getMessage());
         }
     }
 
     /**
-     * 健康检查
+     * Health check
      * GET /api/tn3270/health
      */
     @GetMapping("/health")
     public ApiResponse<String> health() {
-        return ApiResponse.success("TN3270 API 运行正常");
+        return ApiResponse.success("TN3270 API is running");
     }
 }

@@ -18,7 +18,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * TN3270 服务
+ * TN3270 Service
  */
 @Service
 public class Tn3270Service {
@@ -28,277 +28,277 @@ public class Tn3270Service {
     @Autowired
     private Tn3270Properties properties;
 
-    // 会话管理
+    // Session management
     private final Map<String, Tn3270Session> sessions = new ConcurrentHashMap<>();
 
     /**
-     * 登录并建立连接（API1）
+     * Login and establish connection (API1)
      */
     public String login() throws Exception {
         String sessionId = UUID.randomUUID().toString();
-        logger.info("创建新会话: {}", sessionId);
+        logger.info("Creating new session: {}", sessionId);
 
         ExtendedEmulator emulator = new ExtendedEmulator(properties.getScriptPort());
         Tn3270Session session = new Tn3270Session(sessionId, emulator);
 
         try {
-            // 启动模拟器
-            logger.info("启动 3270 模拟器...");
+            // Start emulator
+            logger.info("Starting 3270 emulator...");
             emulator.start();
-            Thread.sleep(3000); // 等待模拟器启动
+            Thread.sleep(3000); // Wait for emulator to start
 
-            // 连接到主机
+            // Connect to host
             String connectionString = properties.getHost() + ":" + properties.getPort();
-            logger.info("连接到主机: {}", connectionString);
+            logger.info("Connecting to host: {}", connectionString);
             boolean connected = emulator.connect(connectionString);
 
             if (!connected) {
-                throw new IOException("连接主机失败");
+                throw new IOException("Failed to connect to host");
             }
 
             session.setConnected(true);
-            logger.info("连接成功，等待主机响应...");
+            logger.info("Connected successfully, waiting for host response...");
 
-            // 等待解锁
-            logger.info("等待键盘解锁...");
+            // Wait for unlock
+            logger.info("Waiting for keyboard unlock...");
             emulator.waitUnlock(30);
-            Thread.sleep(5000); // 等待屏幕数据
+            Thread.sleep(5000); // Wait for screen data
 
-            // 检查 LOGON
+            // Check for LOGON
             if (!screenContains(emulator, "LOGON")) {
-                logger.warn("未找到 LOGON 文字，执行 CLEAR 和 RESET...");
+                logger.warn("LOGON text not found, sending CLEAR and RESET...");
                 emulator.sendKey("Clear");
                 Thread.sleep(1000);
                 emulator.sendKey("Reset");
                 Thread.sleep(1000);
             }
 
-            // 登录流程
-            logger.info("开始登录流程...");
+            // Login sequence
+            logger.info("Starting login sequence...");
 
-            // 输入用户名
-            logger.info("输入用户名: {}", properties.getUsername());
+            // Enter username
+            logger.info("Entering username: {}", properties.getUsername());
             emulator.fillField(22, 13, properties.getUsername());
             Thread.sleep(1000);
 
-            // 提交用户名
-            logger.info("提交用户名");
+            // Submit username
+            logger.info("Submitting username");
             emulator.sendEnter();
             Thread.sleep(5000);
 
             try {
                 emulator.waitUnlock(10);
             } catch (Exception e) {
-                logger.error("waitUnlock 失败", e);
+                logger.error("waitUnlock failed", e);
             }
 
             Thread.sleep(2000);
 
-            // 输入密码
-            logger.info("输入密码");
+            // Enter password
+            logger.info("Entering password");
             emulator.fillField(10, 20, properties.getPassword());
             Thread.sleep(1000);
 
-            // 提交密码
-            logger.info("提交密码");
+            // Submit password
+            logger.info("Submitting password");
             emulator.sendEnter();
             Thread.sleep(3000);
 
-            // 提交登录信息
-            logger.info("提交登录信息");
+            // Submit login credentials
+            logger.info("Submitting login credentials");
             emulator.sendEnter();
             Thread.sleep(3000);
 
-            // 进入主菜单
-            logger.info("进入主菜单");
+            // Enter main menu
+            logger.info("Entering main menu");
             emulator.sendEnter();
             Thread.sleep(2000);
 
-            // 保存会话
+            // Save session
             sessions.put(sessionId, session);
-            logger.info("登录成功，会话已保存: {}", sessionId);
+            logger.info("Login successful, session saved: {}", sessionId);
 
             return sessionId;
 
         } catch (Exception e) {
-            logger.error("登录失败", e);
-            // 清理资源
+            logger.error("Login failed", e);
+            // Clean up resources
             try {
                 emulator.disconnect();
                 emulator.close();
             } catch (Exception ex) {
-                logger.error("清理资源失败", ex);
+                logger.error("Failed to clean up resources", ex);
             }
             throw e;
         }
     }
 
     /**
-     * 发送菜单命令（API2） - 不自动回车
+     * Send menu command (API2) - no auto enter
      */
     public ScreenResponse sendMenuCommand(String sessionId, int row, int column, String command) throws Exception {
         Tn3270Session session = getSession(sessionId);
         ExtendedEmulator emulator = session.getEmulator();
 
-        logger.info("会话 {} 在位置 [行:{}, 列:{}] 输入命令: {}", sessionId, row, column, command);
+        logger.info("Session {} entering command at [row:{}, col:{}]: {}", sessionId, row, column, command);
 
-        // 在指定位置输入命令（不按回车）
+        // Enter command at specified position (no enter)
         emulator.fillField(row, column, command);
         Thread.sleep(1000);
 
-        // 更新访问时间
+        // Update access time
         session.updateAccessTime();
 
-        // 返回屏幕内容
+        // Return screen content
         return getScreen(sessionId);
     }
 
     /**
-     * 发送字符串（API8） - 不指定位置，在当前光标位置输入
+     * Send string (API8) - no position, input at current cursor
      */
     public ScreenResponse sendString(String sessionId, String text) throws Exception {
         Tn3270Session session = getSession(sessionId);
         ExtendedEmulator emulator = session.getEmulator();
 
-        logger.info("会话 {} 在当前光标位置输入字符串: {}", sessionId, text);
+        logger.info("Session {} entering string at current cursor: {}", sessionId, text);
 
-        // 在当前光标位置输入字符串
+        // Input string at current cursor position
         emulator.sendString(text);
         Thread.sleep(500);
 
-        // 更新访问时间
+        // Update access time
         session.updateAccessTime();
 
-        // 返回屏幕内容
+        // Return screen content
         return getScreen(sessionId);
     }
 
     /**
-     * 发送回车键（API5）
+     * Send Enter key (API5)
      */
     public ScreenResponse sendEnter(String sessionId) throws Exception {
         Tn3270Session session = getSession(sessionId);
         ExtendedEmulator emulator = session.getEmulator();
 
-        logger.info("会话 {} 发送回车键", sessionId);
+        logger.info("Session {} sending Enter key", sessionId);
 
-        // 按回车
+        // Press Enter
         emulator.sendEnter();
         Thread.sleep(2000);
 
-        // 等待解锁
+        // Wait for unlock
         try {
             emulator.waitUnlock(10);
         } catch (Exception e) {
-            logger.warn("waitUnlock 超时");
+            logger.warn("waitUnlock timed out");
         }
 
         Thread.sleep(1000);
 
-        // 更新访问时间
+        // Update access time
         session.updateAccessTime();
 
-        // 返回屏幕内容
+        // Return screen content
         return getScreen(sessionId);
     }
 
     /**
-     * 发送 Reset（API6）
+     * Send Reset (API6)
      */
     public ScreenResponse sendReset(String sessionId) throws Exception {
         Tn3270Session session = getSession(sessionId);
         ExtendedEmulator emulator = session.getEmulator();
 
-        logger.info("会话 {} 发送 Reset", sessionId);
+        logger.info("Session {} sending Reset", sessionId);
 
-        // 发送 Reset 键
+        // Send Reset key
         emulator.sendKey("Reset");
         Thread.sleep(1000);
 
-        // 等待解锁
+        // Wait for unlock
         try {
             emulator.waitUnlock(10);
         } catch (Exception e) {
-            logger.warn("waitUnlock 超时");
+            logger.warn("waitUnlock timed out");
         }
 
         Thread.sleep(500);
 
-        // 更新访问时间
+        // Update access time
         session.updateAccessTime();
 
-        // 返回屏幕内容
+        // Return screen content
         return getScreen(sessionId);
     }
 
     /**
-     * 发送 Tab 键（API7）
+     * Send Tab key (API7)
      */
     public ScreenResponse sendTab(String sessionId) throws Exception {
         Tn3270Session session = getSession(sessionId);
         ExtendedEmulator emulator = session.getEmulator();
 
-        logger.info("会话 {} 发送 Tab", sessionId);
+        logger.info("Session {} sending Tab", sessionId);
 
-        // 发送 Tab 键
+        // Send Tab key
         emulator.sendKey("Tab");
         Thread.sleep(500);
 
-        // 更新访问时间
+        // Update access time
         session.updateAccessTime();
 
-        // 返回屏幕内容
+        // Return screen content
         return getScreen(sessionId);
     }
 
     /**
-     * 进入第2级菜单 - 专用接口（API4）
-     * 固定在第4行第13列输入"2"
-     * @deprecated 建议使用 sendMenuCommand(sessionId, 4, 13, "2") + sendEnter(sessionId) 代替
+     * Enter level-2 menu - dedicated (API4)
+     * Fixed: inputs "2" at row 4 column 13
+     * @deprecated Use sendMenuCommand(sessionId, 4, 13, "2") + sendEnter(sessionId) instead
      */
     @Deprecated
     public ScreenResponse enterSecondLevelMenu(String sessionId) throws Exception {
-        logger.info("会话 {} 进入第2级菜单 [使用固定位置]", sessionId);
+        logger.info("Session {} entering level-2 menu [using fixed position]", sessionId);
         sendMenuCommand(sessionId, 4, 13, "2");
         return sendEnter(sessionId);
     }
 
     /**
-     * 执行 LOGOFF（API3）
+     * Execute LOGOFF (API3)
      */
     public ScreenResponse logoff(String sessionId) throws Exception {
         Tn3270Session session = getSession(sessionId);
         ExtendedEmulator emulator = session.getEmulator();
 
-        logger.info("会话 {} 执行 LOGOFF", sessionId);
+        logger.info("Session {} executing LOGOFF", sessionId);
 
-        // 发送 LOGOFF
+        // Send LOGOFF
         emulator.sendString("LOGOFF");
         Thread.sleep(1000);
 
         emulator.sendEnter();
         Thread.sleep(3000);
 
-        // 等待解锁
+        // Wait for unlock
         try {
             emulator.waitUnlock(10);
         } catch (Exception e) {
-            logger.warn("waitUnlock 超时");
+            logger.warn("waitUnlock timed out");
         }
 
         Thread.sleep(2000);
 
-        // 获取屏幕内容
+        // Get screen content
         ScreenResponse response = getScreen(sessionId);
 
-        // 清理会话
+        // Clean up session
         closeSession(sessionId);
 
         return response;
     }
 
     /**
-     * 获取屏幕内容
+     * Get screen content
      */
     public ScreenResponse getScreen(String sessionId) throws Exception {
         Tn3270Session session = getSession(sessionId);
@@ -309,7 +309,7 @@ public class Tn3270Service {
         StringBuilder fullScreen = new StringBuilder();
         int row = 1;
         for (String line : lines) {
-            fullScreen.append(String.format("行%02d: %s\n", row++, line));
+            fullScreen.append(String.format("Row%02d: %s\n", row++, line));
         }
 
         session.updateAccessTime();
@@ -318,18 +318,18 @@ public class Tn3270Service {
     }
 
     /**
-     * 获取会话
+     * Get session
      */
     private Tn3270Session getSession(String sessionId) throws Exception {
         Tn3270Session session = sessions.get(sessionId);
         if (session == null) {
-            throw new Exception("会话不存在或已过期: " + sessionId);
+            throw new Exception("Session not found or expired: " + sessionId);
         }
         return session;
     }
 
     /**
-     * 关闭会话
+     * Close session
      */
     public void closeSession(String sessionId) {
         Tn3270Session session = sessions.remove(sessionId);
@@ -338,15 +338,15 @@ public class Tn3270Service {
                 ExtendedEmulator emulator = session.getEmulator();
                 emulator.disconnect();
                 emulator.close();
-                logger.info("会话 {} 已关闭", sessionId);
+                logger.info("Session {} closed", sessionId);
             } catch (Exception e) {
-                logger.error("关闭会话失败: {}", sessionId, e);
+                logger.error("Failed to close session: {}", sessionId, e);
             }
         }
     }
 
     /**
-     * 检查屏幕是否包含指定文本
+     * Check if screen contains specified text
      */
     private boolean screenContains(ExtendedEmulator emulator, String text) {
         try {
@@ -360,29 +360,29 @@ public class Tn3270Service {
             }
             return false;
         } catch (Exception e) {
-            logger.error("screenContains 出错", e);
+            logger.error("screenContains error", e);
             return false;
         }
     }
 
     /**
-     * 定期清理过期会话
+     * Initialize service
      */
     @PostConstruct
     public void init() {
-        // 可以添加定时任务清理过期会话
-        logger.info("TN3270 服务已初始化");
+        // Can add scheduled task to clean up expired sessions
+        logger.info("TN3270 service initialized");
     }
 
     /**
-     * 应用关闭时清理所有会话
+     * Clean up all sessions on application shutdown
      */
     @PreDestroy
     public void cleanup() {
-        logger.info("清理所有会话...");
+        logger.info("Cleaning up all sessions...");
         for (String sessionId : sessions.keySet()) {
             closeSession(sessionId);
         }
-        logger.info("所有会话已清理");
+        logger.info("All sessions cleaned up");
     }
 }

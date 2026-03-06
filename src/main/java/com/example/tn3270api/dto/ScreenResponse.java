@@ -3,7 +3,7 @@ package com.example.tn3270api.dto;
 import java.util.List;
 
 /**
- * 屏幕内容响应
+ * Screen content response
  */
 public class ScreenResponse {
     private List<String> screenLines;

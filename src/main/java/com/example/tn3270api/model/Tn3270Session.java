@@ -3,7 +3,7 @@ package com.example.tn3270api.model;
 import com.example.tn3270api.emulator.ExtendedEmulator;
 
 /**
- * TN3270 会话
+ * TN3270 session
  */
 public class Tn3270Session {
     

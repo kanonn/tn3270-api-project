@@ -1,7 +1,7 @@
 package com.example.tn3270api.dto;
 
 /**
- * 命令请求
+ * Command request
  */
 public class CommandRequest {
     private String command;

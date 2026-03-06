@@ -4,7 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * TN3270 API 应用程序入口
+ * TN3270 API application entry point
  */
 @SpringBootApplication
 public class Tn3270ApiApplication {

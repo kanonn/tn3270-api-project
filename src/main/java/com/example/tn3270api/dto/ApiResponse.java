@@ -3,7 +3,7 @@ package com.example.tn3270api.dto;
 import java.util.List;
 
 /**
- * API 统一响应格式
+ * Unified API response wrapper
  */
 public class ApiResponse<T> {
     
@@ -31,7 +31,7 @@ public class ApiResponse<T> {
     }
 
     public static <T> ApiResponse<T> success(T data) {
-        return new ApiResponse<>(true, "操作成功", data);
+        return new ApiResponse<>(true, "Operation successful", data);
     }
 
     public static <T> ApiResponse<T> error(String message) {

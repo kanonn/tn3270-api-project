@@ -1,12 +1,12 @@
 package com.example.tn3270api.dto;
 
 /**
- * 菜单命令请求（带位置参数）
+ * Menu command request (with position parameters)
  */
 public class MenuCommandRequest {
-    private int row;        // 行号
-    private int column;     // 列号
-    private String command; // 要输入的字符串
+    private int row;        // row number
+    private int column;     // column number
+    private String command; // string to input
 
     public MenuCommandRequest() {
     }

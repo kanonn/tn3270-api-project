@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * TN3270 配置属性
+ * TN3270 configuration properties
  */
 @Component
 @ConfigurationProperties(prefix = "tn3270")
@@ -15,7 +15,7 @@ public class Tn3270Properties {
     private int scriptPort = 4270;
     private String username = "HERC01";
     private String password = "CUL8TR";
-    private long sessionTimeout = 300000; // 5分钟
+    private long sessionTimeout = 300000; // 5 minutes
 
     // Getters and Setters
     public String getHost() {

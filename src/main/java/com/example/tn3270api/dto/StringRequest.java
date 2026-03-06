@@ -1,7 +1,7 @@
 package com.example.tn3270api.dto;
 
 /**
- * 简单字符串请求（不指定位置）
+ * Simple string request (no position specified)
  */
 public class StringRequest {
     private String text;
