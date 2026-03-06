@@ -5,7 +5,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN which s3270
+RUN which s3270 && ln -sf /usr/bin/s3270 /usr/bin/ws3270
 
 WORKDIR /app
 
