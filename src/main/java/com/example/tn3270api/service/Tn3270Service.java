@@ -73,7 +73,18 @@ public class Tn3270Service {
             logger.info("Connected successfully, waiting for initial screen...");
 
             // Wait for keyboard unlock and initial screen
-            emulator.waitUnlock(30);
+            try {
+                emulator.waitUnlock(30);
+            } catch (Exception e) {
+                logger.warn("Initial waitUnlock timed out, sending Reset...");
+                emulator.sendKey("Reset");
+                Thread.sleep(1000);
+                try {
+                    emulator.waitUnlock(10);
+                } catch (Exception e2) {
+                    logger.warn("Keyboard still locked after Reset, continuing...");
+                }
+            }
             Thread.sleep(3000);
 
             // Save session
@@ -197,6 +208,27 @@ public class Tn3270Service {
     }
 
     /**
+     * Ensure keyboard is unlocked before input operations.
+     * Tries waitUnlock first, then sends Reset if still locked.
+     */
+    private void ensureUnlocked(ExtendedEmulator emulator, String sessionId) {
+        try {
+            emulator.waitUnlock(5);
+            logger.debug("Session {} keyboard is unlocked", sessionId);
+        } catch (Exception e) {
+            logger.warn("Session {} keyboard locked, sending Reset...", sessionId);
+            try {
+                emulator.sendKey("Reset");
+                Thread.sleep(500);
+                emulator.waitUnlock(5);
+                logger.info("Session {} keyboard unlocked after Reset", sessionId);
+            } catch (Exception e2) {
+                logger.warn("Session {} keyboard still locked after Reset, proceeding anyway", sessionId);
+            }
+        }
+    }
+
+    /**
      * Send menu command (API2) - no auto enter
      */
     public ScreenResponse sendMenuCommand(String sessionId, int row, int column, String command) throws Exception {
@@ -204,6 +236,9 @@ public class Tn3270Service {
         ExtendedEmulator emulator = session.getEmulator();
 
         logger.info("Session {} entering command at [row:{}, col:{}]: {}", sessionId, row, column, command);
+
+        // Ensure keyboard is unlocked before input
+        ensureUnlocked(emulator, sessionId);
 
         // Enter command at specified position (no enter)
         emulator.fillField(row, column, command);
@@ -225,6 +260,9 @@ public class Tn3270Service {
 
         logger.info("Session {} entering string at current cursor: {}", sessionId, text);
 
+        // Ensure keyboard is unlocked before input
+        ensureUnlocked(emulator, sessionId);
+
         // Input string at current cursor position
         emulator.sendString(text);
         Thread.sleep(500);
@@ -244,6 +282,9 @@ public class Tn3270Service {
         ExtendedEmulator emulator = session.getEmulator();
 
         logger.info("Session {} sending Enter key", sessionId);
+
+        // Ensure keyboard is unlocked before sending Enter
+        ensureUnlocked(emulator, sessionId);
 
         // Press Enter
         emulator.sendEnter();
@@ -328,6 +369,9 @@ public class Tn3270Service {
         ExtendedEmulator emulator = session.getEmulator();
 
         logger.info("Session {} sending function key: {}", sessionId, keyName);
+
+        // Ensure keyboard is unlocked before sending function key
+        ensureUnlocked(emulator, sessionId);
 
         // Send the function key
         emulator.sendKey(keyName);
