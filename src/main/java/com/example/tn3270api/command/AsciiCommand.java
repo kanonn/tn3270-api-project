@@ -11,20 +11,11 @@ import java.util.List;
 /**
  * Plain Ascii() command for reading the full 3270 screen.
  *
- * IMPORTANT: This does NOT extend AbstractCommand because AbstractCommand
- * uses DATA_PREFIX = " data:" (with leading space), but s3270 on Linux
- * actually outputs "data: " (without leading space). This mismatch causes
- * AbstractCommand to never recognize data lines, returning null.
+ * Implements Command directly (NOT AbstractCommand) because
+ * AbstractCommand.DATA_PREFIX = " data:" (leading space)
+ * but s3270 on Linux outputs "data: " (no leading space).
  *
- * Instead, this implements Command directly and parses s3270 output
- * with the correct prefix "data: ".
- *
- * s3270 Ascii() response format:
- *   data: line1 content (80 chars)
- *   data: line2 content (80 chars)
- *   ... (24 lines total)
- *   U F U C(hostname) I 4 24 80 14 12 0x0 0.000    ← status line
- *   ok                                               ← result line
+ * Includes detailed debug logging to diagnose s3270 communication issues.
  */
 public class AsciiCommand implements Command<List<String>> {
 
@@ -33,41 +24,39 @@ public class AsciiCommand implements Command<List<String>> {
         List<String> lines = new ArrayList<>();
 
         try {
-            // Send Ascii() command
+            // Send command
             writer.write("Ascii()\n");
             writer.flush();
+            System.out.println("[AsciiCommand] Sent: Ascii()");
 
-            // Read response
-            boolean statusFound = false;
-            boolean finished = false;
+            // Read ALL response lines until we see "ok" or "error"
+            int lineCount = 0;
+            String line;
 
-            while (!finished) {
-                String line = reader.readLine();
+            while ((line = reader.readLine()) != null) {
+                lineCount++;
+                System.out.println("[AsciiCommand] Line " + lineCount + ": [" + line + "]");
 
-                if (line == null) {
+                if (line.equals("ok")) {
+                    System.out.println("[AsciiCommand] Got 'ok', total data lines: " + lines.size());
                     break;
-                }
-
-                if (line.startsWith("data: ")) {
-                    // s3270 data line: strip "data: " prefix
+                } else if (line.equals("error")) {
+                    System.err.println("[AsciiCommand] Got 'error', total data lines: " + lines.size());
+                    break;
+                } else if (line.startsWith("data: ")) {
+                    // s3270 format: "data: content"
                     lines.add(line.substring(6));
                 } else if (line.startsWith(" data:")) {
-                    // j3270/ws3270 data line: strip " data:" prefix
+                    // ws3270/j3270 format: " data:content"
                     lines.add(line.substring(6));
-                } else if (!statusFound) {
-                    // First non-data line = status line (skip it)
-                    statusFound = true;
                 } else {
-                    // Second non-data line = result ("ok" or "error")
-                    if (line.startsWith("error")) {
-                        System.err.println("Ascii() command error: " + line);
-                    }
-                    finished = true;
+                    // Status line or other output — skip
+                    System.out.println("[AsciiCommand] (status/other line, skipping)");
                 }
             }
 
         } catch (IOException e) {
-            System.err.println("AsciiCommand IO error: " + e.getMessage());
+            System.err.println("[AsciiCommand] IO error: " + e.getMessage());
         }
 
         return lines;
