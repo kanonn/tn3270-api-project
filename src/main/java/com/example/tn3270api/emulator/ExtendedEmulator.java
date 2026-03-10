@@ -107,10 +107,12 @@ public class ExtendedEmulator extends Emulator {
     }
 
     /**
-     * Wait for screen output to stabilize.
-     * Sends Wait(Output) which blocks until s3270 receives data from host.
+     * Wait for host to send new screen data.
+     * Call this ONLY after operations that trigger a host response
+     * (Enter, function keys, etc.), NOT after local-only operations
+     * (fillField, sendString).
      */
-    private void waitForOutput() {
+    public void waitForOutput() {
         try {
             sendRawCommand("Wait(Output)");
         } catch (Exception e) {
@@ -121,13 +123,15 @@ public class ExtendedEmulator extends Emulator {
     /**
      * Get full screen content (24 rows x 80 cols).
      *
-     * Sends Wait(Output) first to ensure screen is stable,
-     * then reads via Ascii() command. Retries once on failure.
+     * Reads current s3270 buffer via Ascii() command.
+     * Does NOT wait for host output — caller is responsible for
+     * calling waitForOutput() when needed (after Enter/function keys).
+     * Retries once on failure.
      */
     public List<String> getScreenLines() throws IOException {
-        // Brief pause to let any pending screen update arrive
+        // Brief pause to let s3270 internal buffer settle
         try {
-            Thread.sleep(300);
+            Thread.sleep(200);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -135,10 +139,7 @@ public class ExtendedEmulator extends Emulator {
         // Attempt with retry
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
-                // Wait for screen to be stable before reading
-                waitForOutput();
-
-                // Read screen content
+                // Read screen content directly (no Wait)
                 List<String> lines = sendRawCommand("Ascii()");
 
                 // Validate: should have exactly 24 rows for a standard 3270 screen

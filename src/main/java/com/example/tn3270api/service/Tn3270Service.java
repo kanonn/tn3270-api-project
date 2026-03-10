@@ -288,7 +288,10 @@ public class Tn3270Service {
 
         // Press Enter
         emulator.sendEnter();
-        Thread.sleep(2000);
+        Thread.sleep(1000);
+
+        // Wait for host to send new screen data
+        emulator.waitForOutput();
 
         // Wait for unlock
         try {
@@ -297,7 +300,7 @@ public class Tn3270Service {
             logger.warn("waitUnlock timed out");
         }
 
-        Thread.sleep(1000);
+        Thread.sleep(500);
 
         // Update access time
         session.updateAccessTime();
@@ -375,7 +378,10 @@ public class Tn3270Service {
 
         // Send the function key
         emulator.sendKey(keyName);
-        Thread.sleep(2000);
+        Thread.sleep(1000);
+
+        // Wait for host to send new screen data
+        emulator.waitForOutput();
 
         // Wait for unlock
         try {
@@ -384,7 +390,7 @@ public class Tn3270Service {
             logger.warn("waitUnlock timed out after {}", keyName);
         }
 
-        Thread.sleep(1000);
+        Thread.sleep(500);
 
         // Update access time
         session.updateAccessTime();
