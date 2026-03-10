@@ -3,6 +3,7 @@ package com.example.tn3270api.emulator;
 import com.example.tn3270api.command.AsciiCommand;
 import com.github.filipesimoes.j3270.Command;
 import com.github.filipesimoes.j3270.Emulator;
+import com.github.filipesimoes.j3270.command.MoveCursorCommand;
 import com.github.filipesimoes.j3270.command.SendKeysCommand;
 import com.github.filipesimoes.j3270.command.WaitCommand;
 
@@ -102,6 +103,17 @@ public class ExtendedEmulator extends Emulator {
     }
 
     public void sendString(String text) {
+        execute(new com.github.filipesimoes.j3270.command.SendStringCommand(text));
+    }
+
+    /**
+     * Move cursor to position and type text.
+     * Unlike fillField(), this does NOT send DeleteField,
+     * which can corrupt field structures on some mainframe screens.
+     * This matches the behavior of typing in a 3270 terminal client.
+     */
+    public void moveCursorAndType(int row, int col, String text) {
+        execute(new MoveCursorCommand(row, col));
         execute(new com.github.filipesimoes.j3270.command.SendStringCommand(text));
     }
 }

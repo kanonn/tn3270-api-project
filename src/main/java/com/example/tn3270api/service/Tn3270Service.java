@@ -230,6 +230,8 @@ public class Tn3270Service {
 
     /**
      * Send menu command (API2) - no auto enter
+     * Uses MoveCursor + SendString instead of fillField
+     * (fillField sends DeleteField which can corrupt ANEMS screen fields)
      */
     public ScreenResponse sendMenuCommand(String sessionId, int row, int column, String command) throws Exception {
         Tn3270Session session = getSession(sessionId);
@@ -240,9 +242,9 @@ public class Tn3270Service {
         // Ensure keyboard is unlocked before input
         ensureUnlocked(emulator, sessionId);
 
-        // Enter command at specified position (no enter)
-        emulator.fillField(row, column, command);
-        Thread.sleep(1000);
+        // Move cursor to position and type text (NO DeleteField)
+        emulator.moveCursorAndType(row, column, command);
+        Thread.sleep(500);
 
         // Update access time
         session.updateAccessTime();
