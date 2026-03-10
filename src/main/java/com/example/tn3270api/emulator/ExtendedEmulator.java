@@ -1,5 +1,6 @@
 package com.example.tn3270api.emulator;
 
+import com.example.tn3270api.command.AsciiCommand;
 import com.github.filipesimoes.j3270.Command;
 import com.github.filipesimoes.j3270.Emulator;
 import com.github.filipesimoes.j3270.command.SendKeysCommand;
@@ -12,13 +13,13 @@ import java.util.List;
 /**
  * Extended 3270 emulator with reliable screen reading.
  *
- * Uses j3270's BUILT-IN getText() method for screen reading.
- * No reflection needed — this goes through j3270's proper
+ * NO REFLECTION. All commands go through j3270's proper
  * Commander → Writer/Reader pipeline.
  *
- * Previous versions used reflection to access Commander's socket
- * and created separate BufferedReader/PrintWriter instances,
- * which caused data corruption (two readers on the same stream).
+ * Uses custom AsciiCommand to send plain "Ascii()" (no params)
+ * for full-screen reading. This is the same command that worked
+ * in the original reflection-based version, but now routed
+ * through j3270's own communication channel.
  */
 public class ExtendedEmulator extends Emulator {
 
@@ -38,10 +39,8 @@ public class ExtendedEmulator extends Emulator {
      * Wait for host to send new screen data.
      * Uses j3270's built-in WaitCommand("Output").
      *
-     * Call this ONLY after operations that trigger a host response
-     * (Enter, function keys), NOT after local-only ops (fillField, sendString).
-     *
-     * @param timeoutSeconds max seconds to wait (0 = no timeout)
+     * Call ONLY after Enter / function keys (host responds with new screen).
+     * Do NOT call after fillField / sendString (local buffer only, no host response).
      */
     public void waitForOutput(int timeoutSeconds) {
         try {
@@ -51,9 +50,6 @@ public class ExtendedEmulator extends Emulator {
         }
     }
 
-    /**
-     * Wait for host output with default 10 second timeout.
-     */
     public void waitForOutput() {
         waitForOutput(10);
     }
@@ -61,45 +57,35 @@ public class ExtendedEmulator extends Emulator {
     /**
      * Get full screen content (24 rows x 80 cols).
      *
-     * Uses j3270's built-in getText(row1, col1, row2, col2) method
-     * which internally uses AsciiRCRCCommand → "Ascii(0,0,24,80)".
+     * Sends plain "Ascii()" through j3270's command pipeline.
+     * Returns the current s3270 screen buffer content.
      *
-     * This goes through Commander's proper writer/reader pipeline,
-     * so there's no socket conflict.
-     *
-     * After fillField/sendString: the text you typed will appear.
-     * After Enter/PF key: caller should call waitForOutput() first.
+     * - After fillField/sendString: your typed text will appear
+     * - After Enter/PF key: caller should call waitForOutput() first
      */
     public List<String> getScreenLines() throws IOException {
-        // Brief pause to let s3270 process pending commands
+        // Brief pause for s3270 internal processing
         try {
             Thread.sleep(200);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
 
-        List<String> lines = new ArrayList<>();
+        List<String> lines;
 
         try {
-            // Use j3270's built-in getText to read full 24x80 screen
-            // getText(row1, col1, row2, col2) → AsciiRCRCCommand
-            // Parameters: start at (0,0), end at (24,80)
-            // This generates: Ascii(0, 0, 24, 80) = 24 rows, 80 cols
-            List<String> result = getText(0, 0, 24, 80);
-
-            if (result != null && !result.isEmpty()) {
-                lines.addAll(result);
-            }
+            // Execute plain Ascii() through j3270's pipeline
+            List<String> result = execute(new AsciiCommand());
+            lines = (result != null) ? new ArrayList<>(result) : new ArrayList<>();
         } catch (Exception e) {
             System.err.println("getScreenLines error: " + e.getMessage());
+            lines = new ArrayList<>();
         }
 
         // Pad to exactly 24 rows
         while (lines.size() < 24) {
             lines.add(String.format("%-80s", ""));
         }
-
-        // Limit to 24 rows
         if (lines.size() > 24) {
             lines = new ArrayList<>(lines.subList(0, 24));
         }
@@ -115,9 +101,6 @@ public class ExtendedEmulator extends Emulator {
         execute(new SendKeysCommand(keyName));
     }
 
-    /**
-     * Send string at current cursor position
-     */
     public void sendString(String text) {
         execute(new com.github.filipesimoes.j3270.command.SendStringCommand(text));
     }
