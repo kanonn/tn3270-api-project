@@ -12,8 +12,11 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,11 +28,71 @@ public class Tn3270Service {
 
     private static final Logger logger = LoggerFactory.getLogger(Tn3270Service.class);
 
+    /** Allowed function key names for validation */
+    private static final Set<String> ALLOWED_KEYS = new HashSet<>(Arrays.asList(
+        "PF1", "PF2", "PF3", "PF4", "PF5", "PF6",
+        "PF7", "PF8", "PF9", "PF10", "PF11", "PF12",
+        "PF13", "PF14", "PF15", "PF16", "PF17", "PF18",
+        "PF19", "PF20", "PF21", "PF22", "PF23", "PF24",
+        "PA1", "PA2", "PA3", "Clear"
+    ));
+
     @Autowired
     private Tn3270Properties properties;
 
     // Session management
     private final Map<String, Tn3270Session> sessions = new ConcurrentHashMap<>();
+
+    /**
+     * Connect only - no auto login (API10)
+     * Establishes 3270 connection and returns the initial screen
+     */
+    public String connect() throws Exception {
+        String sessionId = UUID.randomUUID().toString();
+        logger.info("Creating new session (connect only): {}", sessionId);
+
+        ExtendedEmulator emulator = new ExtendedEmulator(properties.getScriptPort());
+        Tn3270Session session = new Tn3270Session(sessionId, emulator);
+
+        try {
+            // Start emulator
+            logger.info("Starting 3270 emulator...");
+            emulator.start();
+            Thread.sleep(3000);
+
+            // Connect to host
+            String connectionString = properties.getHost() + ":" + properties.getPort();
+            logger.info("Connecting to host: {}", connectionString);
+            boolean connected = emulator.connect(connectionString);
+
+            if (!connected) {
+                throw new IOException("Failed to connect to host");
+            }
+
+            session.setConnected(true);
+            logger.info("Connected successfully, waiting for initial screen...");
+
+            // Wait for keyboard unlock and initial screen
+            emulator.waitUnlock(30);
+            Thread.sleep(3000);
+
+            // Save session
+            sessions.put(sessionId, session);
+            logger.info("Connection established, session saved: {}", sessionId);
+
+            return sessionId;
+
+        } catch (Exception e) {
+            logger.error("Connection failed", e);
+            try {
+                emulator.disconnect();
+                emulator.close();
+            } catch (Exception ex) {
+                logger.error("Failed to clean up resources", ex);
+            }
+            throw e;
+        }
+    }
 
     /**
      * Login and establish connection (API1)
@@ -252,6 +315,41 @@ public class Tn3270Service {
     }
 
     /**
+     * Send function key (API9) - PF1-PF24, PA1-PA3, Clear
+     */
+    public ScreenResponse sendFunctionKey(String sessionId, String keyName) throws Exception {
+        // Validate key name
+        if (!ALLOWED_KEYS.contains(keyName)) {
+            throw new IllegalArgumentException("Invalid function key: " + keyName
+                + ". Allowed: PF1-PF24, PA1-PA3, Clear");
+        }
+
+        Tn3270Session session = getSession(sessionId);
+        ExtendedEmulator emulator = session.getEmulator();
+
+        logger.info("Session {} sending function key: {}", sessionId, keyName);
+
+        // Send the function key
+        emulator.sendKey(keyName);
+        Thread.sleep(2000);
+
+        // Wait for unlock
+        try {
+            emulator.waitUnlock(10);
+        } catch (Exception e) {
+            logger.warn("waitUnlock timed out after {}", keyName);
+        }
+
+        Thread.sleep(1000);
+
+        // Update access time
+        session.updateAccessTime();
+
+        // Return screen content
+        return getScreen(sessionId);
+    }
+
+    /**
      * Enter level-2 menu - dedicated (API4)
      * Fixed: inputs "2" at row 4 column 13
      * @deprecated Use sendMenuCommand(sessionId, 4, 13, "2") + sendEnter(sessionId) instead
@@ -370,7 +468,6 @@ public class Tn3270Service {
      */
     @PostConstruct
     public void init() {
-        // Can add scheduled task to clean up expired sessions
         logger.info("TN3270 service initialized");
     }
 

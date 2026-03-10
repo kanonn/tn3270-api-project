@@ -1,6 +1,7 @@
 package com.example.tn3270api.controller;
 
 import com.example.tn3270api.dto.ApiResponse;
+import com.example.tn3270api.dto.FunctionKeyRequest;
 import com.example.tn3270api.dto.MenuCommandRequest;
 import com.example.tn3270api.dto.StringRequest;
 import com.example.tn3270api.dto.ScreenResponse;
@@ -21,6 +22,30 @@ public class Tn3270Controller {
 
     @Autowired
     private Tn3270Service tn3270Service;
+
+    /**
+     * API10: Connect to mainframe (no auto login)
+     * POST /api/tn3270/connect
+     * Returns session ID and initial screen
+     */
+    @PostMapping("/connect")
+    public ApiResponse<ScreenResponse> connect() {
+        try {
+            logger.info("Received connect request");
+            String sessionId = tn3270Service.connect();
+            ScreenResponse screen = tn3270Service.getScreen(sessionId);
+
+            ApiResponse<ScreenResponse> response = ApiResponse.success("Connection established", screen);
+            response.setSessionId(sessionId);
+
+            logger.info("Connected successfully, session ID: {}", sessionId);
+            return response;
+
+        } catch (Exception e) {
+            logger.error("Connection failed", e);
+            return ApiResponse.error("Connection failed: " + e.getMessage());
+        }
+    }
 
     /**
      * API1: Login to TSO main menu
@@ -174,6 +199,33 @@ public class Tn3270Controller {
         } catch (Exception e) {
             logger.error("Tab key failed", e);
             return ApiResponse.error("Tab key failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * API9: Send function key (PF1-PF24, PA1-PA3, Clear, etc.)
+     * POST /api/tn3270/key/function
+     * Body: { "keyName": "PF2" }
+     * Header: X-Session-Id: {sessionId}
+     */
+    @PostMapping("/key/function")
+    public ApiResponse<ScreenResponse> sendFunctionKey(
+            @RequestHeader("X-Session-Id") String sessionId,
+            @RequestBody FunctionKeyRequest request) {
+        try {
+            logger.info("Session {} sending function key: {}", sessionId, request.getKeyName());
+
+            ScreenResponse screen = tn3270Service.sendFunctionKey(sessionId, request.getKeyName());
+
+            ApiResponse<ScreenResponse> response = ApiResponse.success(
+                "Function key " + request.getKeyName() + " sent successfully", screen);
+            response.setSessionId(sessionId);
+
+            return response;
+
+        } catch (Exception e) {
+            logger.error("Function key failed", e);
+            return ApiResponse.error("Function key failed: " + e.getMessage());
         }
     }
 

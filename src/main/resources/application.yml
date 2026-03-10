@@ -3,7 +3,7 @@ server:
 
 # TN3270 configuration
 tn3270:
-  host: ${TN3270_HOST:localhost}
+  host: ${TN3270_HOST:127.0.0.1}
   port: ${TN3270_PORT:3270}
 #  host: 127.0.0.1
 #  port: 3270
