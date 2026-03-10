@@ -13,20 +13,20 @@ import java.util.List;
 /**
  * Extended 3270 emulator with reliable screen reading.
  *
- * Key improvements over base Emulator:
- * - Caches socket reader/writer (no re-creation on each call)
- * - Sends Wait(Output) before Ascii() to ensure screen stability
- * - Retry logic for transient read failures
- * - Properly drains s3270 response until "ok" marker
+ * CRITICAL: We must use Commander's own reader/writer for raw commands.
+ * Creating a separate BufferedReader on the same socket InputStream
+ * causes data corruption (two readers fighting over the same bytes).
+ *
+ * This class auto-detects Commander's internal field names via reflection.
  */
 public class ExtendedEmulator extends Emulator {
 
     private int scriptPort;
 
-    // Cached socket I/O — initialized once, reused for all commands
-    private BufferedReader cachedReader;
-    private PrintWriter cachedWriter;
-    private boolean ioInitialized = false;
+    /** Cached references to Commander's reader/writer */
+    private BufferedReader cmdReader;
+    private PrintWriter cmdWriter;
+    private boolean ioResolved = false;
 
     public ExtendedEmulator() {
         super();
@@ -39,68 +39,138 @@ public class ExtendedEmulator extends Emulator {
     }
 
     /**
-     * Initialize (or retrieve cached) socket reader and writer via reflection.
-     * The reader/writer are cached so that the BufferedReader's internal buffer
-     * doesn't consume data meant for subsequent reads.
+     * Resolve Commander's internal reader and writer via reflection.
+     * Tries multiple possible field names, and if none match,
+     * falls back to creating reader/writer from the socket.
+     * Prints all Commander fields for debugging if detection fails.
      */
-    private synchronized void initIO() throws Exception {
-        if (ioInitialized && cachedReader != null && cachedWriter != null) {
-            return;
-        }
+    private synchronized void resolveIO() throws Exception {
+        if (ioResolved) return;
 
-        // Access commander via reflection
+        // Step 1: Get Commander object
         Field commanderField = Emulator.class.getDeclaredField("commander");
         commanderField.setAccessible(true);
         Object commander = commanderField.get(this);
 
-        // Get socket
-        Field socketField = commander.getClass().getDeclaredField("socket");
-        socketField.setAccessible(true);
-        Socket socket = (Socket) socketField.get(commander);
-
-        if (socket == null || !socket.isConnected()) {
-            throw new IOException("Socket not connected");
+        if (commander == null) {
+            throw new IOException("Commander is null — emulator not started?");
         }
 
-        // Set socket read timeout to prevent infinite blocking
-        socket.setSoTimeout(10000); // 10 seconds
+        // Step 2: Log all Commander fields for debugging
+        System.out.println("=== Commander class: " + commander.getClass().getName() + " ===");
+        Field[] allFields = commander.getClass().getDeclaredFields();
+        for (Field f : allFields) {
+            f.setAccessible(true);
+            Object val = f.get(commander);
+            System.out.println("  Field: " + f.getName()
+                + " | Type: " + f.getType().getSimpleName()
+                + " | Value: " + (val == null ? "null" : val.getClass().getSimpleName()));
+        }
+        System.out.println("=== End Commander fields ===");
 
-        cachedReader = new BufferedReader(
-                new InputStreamReader(socket.getInputStream(), "ASCII")
-        );
-        cachedWriter = new PrintWriter(
-                new OutputStreamWriter(socket.getOutputStream(), "ASCII"),
-                true
-        );
-        ioInitialized = true;
+        // Step 3: Try to find reader (BufferedReader or similar)
+        cmdReader = (BufferedReader) findField(commander,
+            BufferedReader.class,
+            "reader", "in", "bufferedReader", "br", "input");
+
+        // Step 4: Try to find writer (PrintWriter or similar)
+        cmdWriter = (PrintWriter) findField(commander,
+            PrintWriter.class,
+            "writer", "out", "printWriter", "pw", "output");
+
+        // Step 5: If reader/writer not found, fall back to socket
+        if (cmdReader == null || cmdWriter == null) {
+            System.out.println("Commander reader/writer fields not found, falling back to socket...");
+
+            Socket socket = (Socket) findField(commander, Socket.class, "socket", "sock", "s");
+
+            if (socket == null || !socket.isConnected()) {
+                throw new IOException("Cannot find usable socket in Commander");
+            }
+
+            // Create our own reader/writer from socket
+            // WARNING: This may conflict with Commander's internal readers.
+            // But it's our best fallback.
+            if (cmdReader == null) {
+                cmdReader = new BufferedReader(
+                    new InputStreamReader(socket.getInputStream(), "ASCII"));
+                System.out.println("Created BufferedReader from socket (fallback)");
+            }
+            if (cmdWriter == null) {
+                cmdWriter = new PrintWriter(
+                    new OutputStreamWriter(socket.getOutputStream(), "ASCII"), true);
+                System.out.println("Created PrintWriter from socket (fallback)");
+            }
+        } else {
+            System.out.println("Using Commander's own reader/writer (optimal)");
+        }
+
+        ioResolved = true;
     }
 
     /**
-     * Send a raw command to s3270 and read the response lines.
-     * Reads until "ok" or "error" marker is found.
-     *
-     * @param command The s3270 scripting command (e.g. "Ascii()", "Wait(Output)")
-     * @return list of data lines (with "data: " prefix stripped), or empty on error
+     * Find a field of a given type in the target object, trying multiple names.
+     * Returns null if no matching field found.
+     */
+    private Object findField(Object target, Class<?> expectedType, String... names) {
+        // First: try by name
+        for (String name : names) {
+            try {
+                Field f = target.getClass().getDeclaredField(name);
+                f.setAccessible(true);
+                Object val = f.get(target);
+                if (val != null && expectedType.isAssignableFrom(val.getClass())) {
+                    System.out.println("  Found " + expectedType.getSimpleName()
+                        + " in field '" + name + "'");
+                    return val;
+                }
+            } catch (NoSuchFieldException e) {
+                // try next name
+            } catch (Exception e) {
+                System.err.println("  Error reading field '" + name + "': " + e.getMessage());
+            }
+        }
+
+        // Second: try by type (scan all fields)
+        try {
+            for (Field f : target.getClass().getDeclaredFields()) {
+                f.setAccessible(true);
+                Object val = f.get(target);
+                if (val != null && expectedType.isAssignableFrom(val.getClass())) {
+                    System.out.println("  Found " + expectedType.getSimpleName()
+                        + " in field '" + f.getName() + "' (by type scan)");
+                    return val;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("  Type scan error: " + e.getMessage());
+        }
+
+        System.out.println("  Could not find " + expectedType.getSimpleName() + " in Commander");
+        return null;
+    }
+
+    /**
+     * Send a raw command to s3270 using Commander's reader/writer.
      */
     private synchronized List<String> sendRawCommand(String command) throws Exception {
-        initIO();
+        resolveIO();
 
         List<String> dataLines = new ArrayList<>();
 
-        cachedWriter.println(command);
-        cachedWriter.flush();
+        cmdWriter.println(command);
+        cmdWriter.flush();
 
         String line;
-        while ((line = cachedReader.readLine()) != null) {
+        while ((line = cmdReader.readLine()) != null) {
             if (line.equals("ok")) {
                 break;
             } else if (line.startsWith("error")) {
-                System.err.println("s3270 command [" + command + "] returned: " + line);
-                return dataLines; // Return whatever we got so far
+                System.err.println("s3270 [" + command + "] returned: " + line);
+                break;
             } else if (line.startsWith("data: ")) {
                 dataLines.add(line.substring(6));
             }
-            // Skip any other lines (e.g. status lines)
         }
 
         return dataLines;
@@ -108,9 +178,7 @@ public class ExtendedEmulator extends Emulator {
 
     /**
      * Wait for host to send new screen data.
-     * Call this ONLY after operations that trigger a host response
-     * (Enter, function keys, etc.), NOT after local-only operations
-     * (fillField, sendString).
+     * Call ONLY after Enter/function keys, NOT after fillField/sendString.
      */
     public void waitForOutput() {
         try {
@@ -123,67 +191,34 @@ public class ExtendedEmulator extends Emulator {
     /**
      * Get full screen content (24 rows x 80 cols).
      *
-     * Reads current s3270 buffer via Ascii() command.
-     * Does NOT wait for host output — caller is responsible for
-     * calling waitForOutput() when needed (after Enter/function keys).
-     * Retries once on failure.
+     * Reads s3270's current buffer via Ascii(). Does NOT wait for host output.
+     * After fillField: the text you entered will appear in the result.
+     * After Enter/PF: caller should call waitForOutput() first.
      */
     public List<String> getScreenLines() throws IOException {
-        // Brief pause to let s3270 internal buffer settle
         try {
             Thread.sleep(200);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
 
-        // Attempt with retry
-        for (int attempt = 1; attempt <= 2; attempt++) {
-            try {
-                // Read screen content directly (no Wait)
-                List<String> lines = sendRawCommand("Ascii()");
-
-                // Validate: should have exactly 24 rows for a standard 3270 screen
-                if (lines.size() >= 24) {
-                    return lines.subList(0, 24);
-                }
-
-                // If we got some lines but less than 24, pad with empty lines
-                if (!lines.isEmpty()) {
-                    while (lines.size() < 24) {
-                        lines.add(String.format("%-80s", ""));
-                    }
-                    return lines;
-                }
-
-                // Got zero lines — retry
-                if (attempt < 2) {
-                    System.err.println("getScreenLines: got 0 lines, retrying (attempt " + attempt + ")...");
-                    Thread.sleep(1000);
-                }
-
-            } catch (Exception e) {
-                System.err.println("getScreenLines attempt " + attempt + " failed: " + e.getMessage());
-                if (attempt < 2) {
-                    // Reset IO cache and retry
-                    ioInitialized = false;
-                    cachedReader = null;
-                    cachedWriter = null;
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            }
+        List<String> lines;
+        try {
+            lines = sendRawCommand("Ascii()");
+        } catch (Exception e) {
+            System.err.println("getScreenLines failed: " + e.getMessage());
+            lines = new ArrayList<>();
         }
 
-        // Final fallback: return 24 empty lines
-        System.err.println("getScreenLines: all attempts failed, returning empty screen");
-        List<String> empty = new ArrayList<>();
-        for (int i = 0; i < 24; i++) {
-            empty.add(String.format("%-80s", ""));
+        // Pad to exactly 24 rows
+        while (lines.size() < 24) {
+            lines.add(String.format("%-80s", ""));
         }
-        return empty;
+        if (lines.size() > 24) {
+            lines = new ArrayList<>(lines.subList(0, 24));
+        }
+
+        return lines;
     }
 
     public <V> V executeCommand(Command<V> command) {
@@ -194,9 +229,6 @@ public class ExtendedEmulator extends Emulator {
         execute(new SendKeysCommand(keyName));
     }
 
-    /**
-     * Send string at current cursor position
-     */
     public void sendString(String text) {
         execute(new com.github.filipesimoes.j3270.command.SendStringCommand(text));
     }
