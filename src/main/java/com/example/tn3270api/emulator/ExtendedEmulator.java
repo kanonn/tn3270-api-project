@@ -3,28 +3,29 @@ package com.example.tn3270api.emulator;
 import com.example.tn3270api.command.AsciiCommand;
 import com.github.filipesimoes.j3270.Command;
 import com.github.filipesimoes.j3270.Emulator;
+import com.github.filipesimoes.j3270.TerminalCommander;
 import com.github.filipesimoes.j3270.command.MoveCursorCommand;
 import com.github.filipesimoes.j3270.command.SendKeysCommand;
 import com.github.filipesimoes.j3270.command.WaitCommand;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 /**
- * Extended 3270 emulator with reliable screen reading.
- *
- * NO REFLECTION. All commands go through j3270's proper
- * Commander → Writer/Reader pipeline.
- *
- * Uses custom AsciiCommand to send plain "Ascii()" (no params)
- * for full-screen reading. This is the same command that worked
- * in the original reflection-based version, but now routed
- * through j3270's own communication channel.
+ * Extended 3270 emulator with:
+ * - Japanese charset support (via custom s3270 runner)
+ * - Reliable screen reading (via custom AsciiCommand)
+ * - moveCursorAndType (no DeleteField)
+ * - waitForOutput (only after Enter/function keys)
  */
 public class ExtendedEmulator extends Emulator {
 
     private int scriptPort;
+    private String charset;
+    private CustomEmulatorRunner customRunner;
 
     public ExtendedEmulator() {
         super();
@@ -36,12 +37,72 @@ public class ExtendedEmulator extends Emulator {
         this.scriptPort = scriptPort;
     }
 
+    public ExtendedEmulator(int scriptPort, String charset) {
+        super(scriptPort);
+        this.scriptPort = scriptPort;
+        this.charset = charset;
+    }
+
+    /**
+     * Override start() to use our CustomEmulatorRunner when charset is specified.
+     * This replaces j3270's default Emulator3270Runner which doesn't support -charset.
+     */
+    @Override
+    public void start() throws IOException, TimeoutException {
+        if (charset != null && !charset.isEmpty()) {
+            System.out.println("[ExtendedEmulator] Starting with charset: " + charset);
+
+            // Create and start our custom runner in a daemon thread
+            customRunner = new CustomEmulatorRunner(scriptPort, charset);
+            Thread runnerThread = new Thread(customRunner, "s3270-runner");
+            runnerThread.setDaemon(true);
+            runnerThread.start();
+
+            // Wait for s3270 process to start
+            int attempts = 0;
+            while (!customRunner.isStarted() && attempts < 20) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                attempts++;
+            }
+
+            if (!customRunner.isStarted()) {
+                throw new TimeoutException("s3270 process failed to start");
+            }
+
+            // Connect commander (access via reflection since it's private in Emulator)
+            try {
+                Field commanderField = Emulator.class.getDeclaredField("commander");
+                commanderField.setAccessible(true);
+                TerminalCommander commander = (TerminalCommander) commanderField.get(this);
+                commander.connect();
+                System.out.println("[ExtendedEmulator] Commander connected");
+            } catch (Exception e) {
+                throw new IOException("Failed to connect commander: " + e.getMessage(), e);
+            }
+        } else {
+            // No charset — use default j3270 startup
+            super.start();
+        }
+    }
+
+    /**
+     * Override close() to also stop our custom runner.
+     */
+    @Override
+    public void close() {
+        if (customRunner != null) {
+            customRunner.stop();
+        }
+        super.close();
+    }
+
     /**
      * Wait for host to send new screen data.
-     * Uses j3270's built-in WaitCommand("Output").
-     *
-     * Call ONLY after Enter / function keys (host responds with new screen).
-     * Do NOT call after fillField / sendString (local buffer only, no host response).
+     * Call ONLY after Enter / function keys.
      */
     public void waitForOutput(int timeoutSeconds) {
         try {
@@ -56,16 +117,10 @@ public class ExtendedEmulator extends Emulator {
     }
 
     /**
-     * Get full screen content (24 rows x 80 cols).
-     *
-     * Sends plain "Ascii()" through j3270's command pipeline.
-     * Returns the current s3270 screen buffer content.
-     *
-     * - After fillField/sendString: your typed text will appear
-     * - After Enter/PF key: caller should call waitForOutput() first
+     * Get full screen content.
+     * Returns all rows (24 for Model 2, 43 for Model 4).
      */
     public List<String> getScreenLines() throws IOException {
-        // Brief pause for s3270 internal processing
         try {
             Thread.sleep(200);
         } catch (InterruptedException e) {
@@ -73,9 +128,7 @@ public class ExtendedEmulator extends Emulator {
         }
 
         List<String> lines;
-
         try {
-            // Execute plain Ascii() through j3270's pipeline
             List<String> result = execute(new AsciiCommand());
             lines = (result != null) ? new ArrayList<>(result) : new ArrayList<>();
         } catch (Exception e) {
@@ -83,8 +136,6 @@ public class ExtendedEmulator extends Emulator {
             lines = new ArrayList<>();
         }
 
-        // Return all lines (screen may be 24 or 43 rows depending on model)
-        // Do NOT truncate — the frontend will handle display
         return lines;
     }
 
@@ -102,9 +153,7 @@ public class ExtendedEmulator extends Emulator {
 
     /**
      * Move cursor to position and type text.
-     * Unlike fillField(), this does NOT send DeleteField,
-     * which can corrupt field structures on some mainframe screens.
-     * This matches the behavior of typing in a 3270 terminal client.
+     * Does NOT send DeleteField (unlike fillField).
      */
     public void moveCursorAndType(int row, int col, String text) {
         execute(new MoveCursorCommand(row, col));

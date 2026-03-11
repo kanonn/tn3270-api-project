@@ -16,6 +16,7 @@ public class Tn3270Properties {
     private String username = "HERC01";
     private String password = "CUL8TR";
     private long sessionTimeout = 300000; // 5 minutes
+    private String charset = ""; // e.g. "japanese-kana" for Japanese mainframes
 
     // Getters and Setters
     public String getHost() {
@@ -64,5 +65,13 @@ public class Tn3270Properties {
 
     public void setSessionTimeout(long sessionTimeout) {
         this.sessionTimeout = sessionTimeout;
+    }
+
+    public String getCharset() {
+        return charset;
+    }
+
+    public void setCharset(String charset) {
+        this.charset = charset;
     }
 }

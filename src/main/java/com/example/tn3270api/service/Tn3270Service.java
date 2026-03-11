@@ -51,7 +51,7 @@ public class Tn3270Service {
         String sessionId = UUID.randomUUID().toString();
         logger.info("Creating new session (connect only): {}", sessionId);
 
-        ExtendedEmulator emulator = new ExtendedEmulator(properties.getScriptPort());
+        ExtendedEmulator emulator = new ExtendedEmulator(properties.getScriptPort(), properties.getCharset());
         Tn3270Session session = new Tn3270Session(sessionId, emulator);
 
         try {
@@ -112,7 +112,7 @@ public class Tn3270Service {
         String sessionId = UUID.randomUUID().toString();
         logger.info("Creating new session: {}", sessionId);
 
-        ExtendedEmulator emulator = new ExtendedEmulator(properties.getScriptPort());
+        ExtendedEmulator emulator = new ExtendedEmulator(properties.getScriptPort(), properties.getCharset());
         Tn3270Session session = new Tn3270Session(sessionId, emulator);
 
         try {
