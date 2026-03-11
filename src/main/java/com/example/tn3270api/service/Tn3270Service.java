@@ -242,8 +242,13 @@ public class Tn3270Service {
         // Ensure keyboard is unlocked before input
         ensureUnlocked(emulator, sessionId);
 
+        // Convert from 1-based (UI display) to 0-based (s3270 internal)
+        int s3270Row = row - 1;
+        int s3270Col = column - 1;
+        logger.info("Session {} moveCursor to 0-based [{}, {}]", sessionId, s3270Row, s3270Col);
+
         // Move cursor to position and type text (NO DeleteField)
-        emulator.moveCursorAndType(row, column, command);
+        emulator.moveCursorAndType(s3270Row, s3270Col, command);
         Thread.sleep(500);
 
         // Update access time

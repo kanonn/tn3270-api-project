@@ -83,14 +83,8 @@ public class ExtendedEmulator extends Emulator {
             lines = new ArrayList<>();
         }
 
-        // Pad to exactly 24 rows
-        while (lines.size() < 24) {
-            lines.add(String.format("%-80s", ""));
-        }
-        if (lines.size() > 24) {
-            lines = new ArrayList<>(lines.subList(0, 24));
-        }
-
+        // Return all lines (screen may be 24 or 43 rows depending on model)
+        // Do NOT truncate — the frontend will handle display
         return lines;
     }
 
