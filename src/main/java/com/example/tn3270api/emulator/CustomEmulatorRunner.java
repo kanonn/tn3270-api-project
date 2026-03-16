@@ -22,8 +22,8 @@ public class CustomEmulatorRunner implements Runnable {
     private static final Logger logger = LoggerFactory.getLogger(CustomEmulatorRunner.class);
 
     private int scriptPort;
-    // private String model = "3278-5-E";
-    private String model = "5";
+    private String model = "3278-5-E";
+    // private String model = "5";
     private String charset = "cp930"; // e.g. "japanese-kana"
 
     private Process process = null;
@@ -92,23 +92,23 @@ public class CustomEmulatorRunner implements Runnable {
     }
 
     private List<String> buildArgs(String executable) {
-        List<String> args = new ArrayList<>();
+    List<String> args = new ArrayList<>();
 
-        args.add(executable);
-        args.add("-scriptport");
-        args.add("localhost:" + scriptPort);
-        args.add("-model");
-        args.add(model);
+    args.add(executable);
+    args.add("-scriptport");
+    // localhost: プレフィックスを外す（バージョンによっては不要）
+    args.add(String.valueOf(scriptPort));
+    args.add("-model");
+    args.add(model);  // "3278-5-E" を設定
 
-        // Add charset for Japanese support
-        if (charset != null && !charset.isEmpty()) {
-            args.add("-codepage");
-            args.add(charset);
-            args.add("-utf8");
-        }
-
-        return args;
+    if (charset != null && !charset.isEmpty()) {
+        args.add("-codepage");
+        args.add(charset);
+        // -utf8 はバージョンによって非対応のため一旦削除
     }
+
+    return args;
+}
 
     private boolean isExecutablePresent(String executable) {
         try {

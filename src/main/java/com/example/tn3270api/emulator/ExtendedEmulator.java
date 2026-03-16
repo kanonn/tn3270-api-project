@@ -49,43 +49,40 @@ public class ExtendedEmulator extends Emulator {
      */
     @Override
     public void start() throws IOException, TimeoutException {
-        if (charset != null && !charset.isEmpty()) {
-            System.out.println("[ExtendedEmulator] Starting with charset: " + charset);
+        System.out.println("[ExtendedEmulator] Starting CustomEmulatorRunner. charset=" + charset + ", port=" + scriptPort);
 
-            // Create and start our custom runner in a daemon thread
-            customRunner = new CustomEmulatorRunner(scriptPort, charset);
-            Thread runnerThread = new Thread(customRunner, "s3270-runner");
-            runnerThread.setDaemon(true);
-            runnerThread.start();
+        // charsetの有無に関わらず常にCustomEmulatorRunnerを使う
+        customRunner = new CustomEmulatorRunner(scriptPort, charset);
+        Thread runnerThread = new Thread(customRunner, "s3270-runner");
+        runnerThread.setDaemon(true);
+        runnerThread.start();
 
-            // Wait for s3270 process to start
-            int attempts = 0;
-            while (!customRunner.isStarted() && attempts < 20) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                attempts++;
-            }
-
-            if (!customRunner.isStarted()) {
-                throw new TimeoutException("s3270 process failed to start");
-            }
-
-            // Connect commander (access via reflection since it's private in Emulator)
+        // s3270 プロセスの起動を待つ（最大5秒）
+        int attempts = 0;
+        while (!customRunner.isStarted() && attempts < 50) {
             try {
-                Field commanderField = Emulator.class.getDeclaredField("commander");
-                commanderField.setAccessible(true);
-                TerminalCommander commander = (TerminalCommander) commanderField.get(this);
-                commander.connect();
-                System.out.println("[ExtendedEmulator] Commander connected");
-            } catch (Exception e) {
-                throw new IOException("Failed to connect commander: " + e.getMessage(), e);
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
-        } else {
-            // No charset — use default j3270 startup
-            super.start();
+            attempts++;
+        }
+
+        if (!customRunner.isStarted()) {
+            throw new TimeoutException("s3270 process failed to start within 5 seconds");
+        }
+
+        System.out.println("[ExtendedEmulator] s3270 started. Connecting commander...");
+
+        // commander に接続（reflection）
+        try {
+            Field commanderField = Emulator.class.getDeclaredField("commander");
+            commanderField.setAccessible(true);
+            TerminalCommander commander = (TerminalCommander) commanderField.get(this);
+            commander.connect();
+            System.out.println("[ExtendedEmulator] Commander connected successfully");
+        } catch (Exception e) {
+            throw new IOException("Failed to connect commander: " + e.getMessage(), e);
         }
     }
 
