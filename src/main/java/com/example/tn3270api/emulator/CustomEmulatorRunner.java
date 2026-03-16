@@ -15,8 +15,8 @@ import java.util.List;
 public class CustomEmulatorRunner implements Runnable {
 
     private int scriptPort;
-    private String model = "3279-4";
-    private String charset = null; // e.g. "japanese-kana"
+    private String model = "3278-5-E";
+    private String charset = "cp930"; // e.g. "japanese-kana"
 
     private Process process = null;
     private boolean started = false;
@@ -66,8 +66,9 @@ public class CustomEmulatorRunner implements Runnable {
 
         // Add charset for Japanese support
         if (charset != null && !charset.isEmpty()) {
-            args.add("-charset");
+            args.add("-codepage");
             args.add(charset);
+            args.add("-utf8");
         }
 
         return args;
