@@ -121,22 +121,41 @@ public class ExtendedEmulator extends Emulator {
      * Returns all rows (24 for Model 2, 43 for Model 4).
      */
     public List<String> getScreenLines() throws IOException {
-        try {
-            Thread.sleep(200);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        int maxRetries = 5;
+        int waitMs = 500;
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                Thread.sleep(waitMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            List<String> lines;
+            try {
+                List<String> result = execute(new AsciiCommand());
+                lines = (result != null) ? new ArrayList<>(result) : new ArrayList<>();
+            } catch (Exception e) {
+                System.err.println("getScreenLines error: " + e.getMessage());
+                lines = new ArrayList<>();
+            }
+
+            System.out.println("[getScreenLines] attempt=" + attempt + ", lines=" + lines.size());
+
+            // Success: got all 27 rows (Model 5)
+            if (lines.size() >= 27) {
+                return lines;
+            }
+
+            // Incomplete screen, increase wait time and retry
+            waitMs += 500;
+            System.out.println("[getScreenLines] Incomplete (" + lines.size() + " lines), retrying...");
         }
 
-        List<String> lines;
-        try {
-            List<String> result = execute(new AsciiCommand());
-            lines = (result != null) ? new ArrayList<>(result) : new ArrayList<>();
-        } catch (Exception e) {
-            System.err.println("getScreenLines error: " + e.getMessage());
-            lines = new ArrayList<>();
-        }
-
-        return lines;
+        // Last resort: return whatever we have after max retries
+        System.err.println("[getScreenLines] Failed to get 27 lines after " + maxRetries + " attempts");
+        List<String> result = execute(new AsciiCommand());
+        return (result != null) ? new ArrayList<>(result) : new ArrayList<>();
     }
 
     public <V> V executeCommand(Command<V> command) {
