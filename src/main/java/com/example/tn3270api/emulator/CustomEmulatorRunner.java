@@ -4,6 +4,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.example.tn3270api.service.Tn3270Service;
+
 /**
  * Custom 3270 emulator runner with charset support.
  *
@@ -14,8 +19,11 @@ import java.util.List;
  */
 public class CustomEmulatorRunner implements Runnable {
 
+    private static final Logger logger = LoggerFactory.getLogger(CustomEmulatorRunner.class);
+
     private int scriptPort;
-    private String model = "3278-5-E";
+    // private String model = "3278-5-E";
+    private String model = "5";
     private String charset = "cp930"; // e.g. "japanese-kana"
 
     private Process process = null;
@@ -39,10 +47,11 @@ public class CustomEmulatorRunner implements Runnable {
         }
 
         List<String> args = buildArgs(executable);
-        System.out.println("[CustomRunner] Starting: " + String.join(" ", args));
+        logger.info("[CustomRunner] Starting: " + String.join(" ", args));
 
         ProcessBuilder pb = new ProcessBuilder(args);
         try {
+            pb.inheritIO();
             process = pb.start();
             started = true;
             process.waitFor();
