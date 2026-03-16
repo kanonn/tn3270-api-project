@@ -9,7 +9,7 @@ tn3270:
   username: HERC01
   password: CUL8TR
   session-timeout: 300000  # 5-minute session timeout (milliseconds)
-  charset: japanese-kana   # Japanese EBCDIC charset for s3270
+  charset: cp930   # Japanese EBCDIC charset for s3270
   # Other charset options to try if japanese-kana doesn't work:
   #   charset: chinese-gb18030
   #   charset: bracket  (default, US English)

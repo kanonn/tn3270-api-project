@@ -24,34 +24,41 @@ public class AsciiCommand implements Command<List<String>> {
         List<String> lines = new ArrayList<>();
 
         try {
-            // Send command
+            writer.write("Wait(Output)\n");
+            writer.flush();
+
+            String waitLine;
+            while ((waitLine = reader.readLine()) != null) {
+                System.out.println("[AsciiCommand] Wait response: [" + waitLine + "]");
+                if (waitLine.equals("ok") || waitLine.equals("error")) break;
+            }
+
             writer.write("Ascii()\n");
             writer.flush();
             System.out.println("[AsciiCommand] Sent: Ascii()");
 
-            // Read ALL response lines until we see "ok" or "error"
+            long startTime = System.currentTimeMillis();
             int lineCount = 0;
             String line;
 
             while ((line = reader.readLine()) != null) {
                 lineCount++;
-                System.out.println("[AsciiCommand] Line " + lineCount + ": [" + line + "]");
+                long elapsed = System.currentTimeMillis() - startTime;
+                System.out.println("[AsciiCommand] Line " + lineCount +
+                    " (+" + elapsed + "ms): [" + line + "]");
 
                 if (line.equals("ok")) {
-                    System.out.println("[AsciiCommand] Got 'ok', total data lines: " + lines.size());
+                    System.out.println("[AsciiCommand] Got 'ok', total: " + lines.size());
                     break;
                 } else if (line.equals("error")) {
-                    System.err.println("[AsciiCommand] Got 'error', total data lines: " + lines.size());
+                    System.err.println("[AsciiCommand] Got 'error', total: " + lines.size());
                     break;
                 } else if (line.startsWith("data: ")) {
-                    // s3270 format: "data: content"
                     lines.add(line.substring(6));
                 } else if (line.startsWith(" data:")) {
-                    // ws3270/j3270 format: " data:content"
                     lines.add(line.substring(6));
                 } else {
-                    // Status line or other output — skip
-                    System.out.println("[AsciiCommand] (status/other line, skipping)");
+                    System.out.println("[AsciiCommand] (skipping: " + line + ")");
                 }
             }
 

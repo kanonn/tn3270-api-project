@@ -4,6 +4,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.example.tn3270api.service.Tn3270Service;
+
 /**
  * Custom 3270 emulator runner with charset support.
  *
@@ -14,9 +19,12 @@ import java.util.List;
  */
 public class CustomEmulatorRunner implements Runnable {
 
+    private static final Logger logger = LoggerFactory.getLogger(CustomEmulatorRunner.class);
+
     private int scriptPort;
-    private String model = "3279-4";
-    private String charset = null; // e.g. "japanese-kana"
+    private String model = "3278-5-E";
+    // private String model = "5";
+    private String charset = "cp930"; // e.g. "japanese-kana"
 
     private Process process = null;
     private boolean started = false;
@@ -32,46 +40,75 @@ public class CustomEmulatorRunner implements Runnable {
 
     @Override
     public void run() {
-        String executable = getExecutable();
+        // Moved to the first line to ensure visibility in CloudWatch
+        logger.info("CustomEmulatorRunner thread started. Port: {}", scriptPort);
 
-        if (!isExecutablePresent(executable)) {
-            throw new RuntimeException(executable + " not found.");
-        }
-
-        List<String> args = buildArgs(executable);
-        System.out.println("[CustomRunner] Starting: " + String.join(" ", args));
-
-        ProcessBuilder pb = new ProcessBuilder(args);
         try {
+            String executable = getExecutable();
+
+            // Wrapped in try-catch to prevent silent thread death
+            try {
+                if (!isExecutablePresent(executable)) {
+                    logger.error("Binary not found: {}", executable);
+                    return;
+                }
+            } catch (Exception e) {
+                logger.error("Error checking executable: ", e);
+                return;
+            }
+
+            List<String> args = buildArgs(executable);
+
+            // Crucial for Model 5 (27x132) support in Linux s3270
+            if (!args.contains("-extended")) {
+                args.add("-extended");
+            }
+
+            logger.info("Executing command: {}", String.join(" ", args));
+
+            ProcessBuilder pb = new ProcessBuilder(args);
+            pb.redirectErrorStream(true);
+
             process = pb.start();
             started = true;
-            process.waitFor();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (InterruptedException e) {
-            // Nothing to do.
+
+            // Capture s3270 internal output (e.g., "Invalid model")
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    logger.info("[s3270-shell] {}", line);
+                }
+            }
+
+            int exitCode = process.waitFor();
+            logger.info("s3270 process exited with code: {}", exitCode);
+
+        } catch (Throwable t) {
+            logger.error("Fatal error in emulator thread: ", t);
         } finally {
             stopNow();
         }
     }
 
     private List<String> buildArgs(String executable) {
-        List<String> args = new ArrayList<>();
+    List<String> args = new ArrayList<>();
 
-        args.add(executable);
-        args.add("-scriptport");
-        args.add("localhost:" + scriptPort);
-        args.add("-model");
-        args.add(model);
+    args.add(executable);
+    args.add("-scriptport");
+    // localhost: プレフィックスを外す（バージョンによっては不要）
+    args.add(String.valueOf(scriptPort));
+    args.add("-model");
+    args.add(model);  // "3278-5-E" を設定
 
-        // Add charset for Japanese support
-        if (charset != null && !charset.isEmpty()) {
-            args.add("-charset");
-            args.add(charset);
-        }
-
-        return args;
+    if (charset != null && !charset.isEmpty()) {
+        args.add("-codepage");
+        args.add(charset);
+        // -utf8 はバージョンによって非対応のため一旦削除
     }
+
+    return args;
+}
 
     private boolean isExecutablePresent(String executable) {
         try {
