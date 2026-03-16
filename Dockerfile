@@ -1,7 +1,7 @@
 FROM eclipse-temurin:21-jre-jammy
 
 RUN apt-get update && \
-    apt-get install -y s3270 locales fonts-ipafont-gothic && \
+    apt-get install -y s3270 ncurses-term locales fonts-ipafont-gothic && \
     locale-gen ja_JP.UTF-8 && \
     update-locale LANG=ja_JP.UTF-8 && \
     apt-get clean && \
